@@ -11,7 +11,7 @@ infura_url = f"https://mainnet.infura.io/v3/{infura_token}"
 '''
 
 def connect_to_eth():
-	url = "https://mainnet.infura.io/v3/d9ca8eed551d4ccda325b9638d71777"  # Your Infura Project ID
+	url = "https://mainnet.infura.io/v3/d9ca8eed551d4ccda325b963d8d71777"  # Your Infura Project ID
 	w3 = Web3(HTTPProvider(url))
 	assert w3.is_connected(), f"Failed to connect to provider at {url}"
 	print("✅ Connected to Ethereum Mainnet")
