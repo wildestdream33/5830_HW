@@ -1,21 +1,23 @@
-import random
-import json
 from web3 import Web3
-from web3.middleware import ExtraDataToPOAMiddleware
 from web3.providers.rpc import HTTPProvider
-
-
-# If you use one of the suggested infrastructure providers, the url will be of the form
-# now_url  = f"https://eth.nownodes.io/{now_token}"
-# alchemy_url = f"https://eth-mainnet.alchemyapi.io/v2/{alchemy_token}"
-# infura_url = f"https://mainnet.infura.io/v3/{infura_token}"
+import requests
+from requests.auth import HTTPBasicAuth
 
 def connect_to_eth():
-	url = "https://mainnet.infura.io/v3/d9ca8eed551d4ccda325b963d8d71777"
-	w3 = Web3(HTTPProvider(url))
-	assert w3.is_connected(), f"Failed to connect to provider at {url}"
-	print("✅ Connected to Ethereum Mainnet")
-	return w3
+    project_id = "e03b544561e94e90a79c8867bdc0c35e"
+    project_secret = "tQgwk1K2Hupu4mXutm6QDx6mbGZKaUupknsj2QwbTMTZ3xF4IUw5zA"
+    url = f"https://mainnet.infura.io/v3/{project_id}"
+
+    # Use a custom session with HTTP basic auth
+    session = requests.Session()
+    session.auth = HTTPBasicAuth(project_id, project_secret)
+
+    provider = HTTPProvider(endpoint_uri=url, session=session)
+    w3 = Web3(provider)
+
+    assert w3.is_connected(), f"Failed to connect to provider at {url}"
+    print("✅ Connected to Ethereum Mainnet")
+    return w3
 
 
 def connect_with_middleware(contract_json):
