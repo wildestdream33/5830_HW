@@ -32,8 +32,9 @@ contract Destination is AccessControl {
         BridgeToken newToken = new BridgeToken(_underlying_token, name, symbol, address(this));
         address wrappedTokenAddress = address(newToken);
 
-        underlying_tokens[_underlying_token] = wrappedTokenAddress;
-        wrapped_tokens[wrappedTokenAddress] = _underlying_token;
+        wrapped_tokens[_underlying_token] = wrappedTokenAddress;
+        underlying_tokens[wrappedTokenAddress] = _underlying_token;
+
         tokens.push(_underlying_token);
 
         emit Creation(_underlying_token, wrappedTokenAddress);
