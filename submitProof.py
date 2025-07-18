@@ -6,7 +6,6 @@ from pathlib import Path
 from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
 
-
 def merkle_assignment():
     primes = generate_primes(8192)
     leaves = convert_leaves(primes)
@@ -17,7 +16,6 @@ def merkle_assignment():
     addr, sig = sign_challenge(challenge)
     if sign_challenge_verify(challenge, addr, sig):
         send_signed_msg(proof, leaves[random_leaf_index])
-
 
 def generate_primes(n):
     primes, candidate = [], 2
@@ -32,10 +30,8 @@ def generate_primes(n):
         candidate += 1
     return primes
 
-
 def convert_leaves(primes):
     return [int.to_bytes(p, 32, 'big') for p in primes]
-
 
 def build_merkle(leaves):
     tree = [leaves]
@@ -50,7 +46,6 @@ def build_merkle(leaves):
         level = nxt
     return tree
 
-
 def prove_merkle(tree, index):
     proof = []
     for level in tree[:-1]:
@@ -60,13 +55,11 @@ def prove_merkle(tree, index):
         index //= 2
     return proof
 
-
 def sign_challenge(challenge):
     acct = get_account()
     msg = eth_account.messages.encode_defunct(text=challenge)
     sig = eth_account.Account.sign_message(msg, acct.key)
     return acct.address, sig.signature.hex()
-
 
 def send_signed_msg(proof, leaf):
     chain = 'bsc'
@@ -86,7 +79,6 @@ def send_signed_msg(proof, leaf):
     print(tx_hash.hex())
     return tx_hash.hex()
 
-
 def connect_to(chain):
     url = ("https://api.avax-test.network/ext/bc/C/rpc"
            if chain == 'avax'
@@ -95,13 +87,11 @@ def connect_to(chain):
     w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
     return w3
 
-
 def get_account():
     key = Path(__file__).parent.joinpath('sk.txt').read_text().strip()
     if key.startswith('0x'):
         key = key[2:]
     return eth_account.Account.from_key(key)
-
 
 def get_contract_info(chain):
     path = Path(__file__).parent / "contract_info.json"
@@ -110,20 +100,18 @@ def get_contract_info(chain):
     data = json.loads(path.read_text())[chain]
     return data['address'], data['abi']
 
-
 def sign_challenge_verify(challenge, addr, sig):
     msg = eth_account.messages.encode_defunct(text=challenge)
     return eth_account.Account.recover_message(msg, signature=sig) == addr
-
 
 def hash_pair(a, b):
     return (Web3.solidity_keccak(['bytes32', 'bytes32'], [a, b])
             if a < b else
             Web3.solidity_keccak(['bytes32', 'bytes32'], [b, a]))
 
-
 if __name__ == "__main__":
     merkle_assignment()
+
 
 
 
