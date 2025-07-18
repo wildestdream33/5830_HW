@@ -73,6 +73,11 @@ def sign_challenge(challenge):
     return addr, signed.signature.hex()
 
 def send_signed_msg(proof, random_leaf):
+    """
+        Takes a Merkle proof of a leaf, and that leaf (in bytes32 format)
+        builds signs and sends a transaction claiming that leaf (prime)
+        on the contract
+    """
     chain = 'bsc'
     acct = get_account()
     address, abi = get_contract_info(chain)
@@ -80,17 +85,21 @@ def send_signed_msg(proof, random_leaf):
 
     contract = w3.eth.contract(address=address, abi=abi)
 
-    # Build transaction
-    tx = contract.functions.submit(proof, Web3.to_bytes(random_leaf)).build_transaction({
-        'from': acct.address,
-        'nonce': w3.eth.get_transaction_count(acct.address),
+    nonce = w3.eth.get_transaction_count(acct.address)
+
+    txn = contract.functions.submit(proof, random_leaf).build_transaction({
+        'chainId': 97,
         'gas': 300000,
-        'gasPrice': w3.eth.gas_price
+        'gasPrice': w3.to_wei('10', 'gwei'),
+        'nonce': nonce
     })
 
-    signed_tx = w3.eth.account.sign_transaction(tx, private_key=acct.key)
-    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    signed_txn = w3.eth.account.sign_transaction(txn, acct.key)
+    tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+
+    print(f"Transaction sent! TX Hash: {tx_hash.hex()}")
     return tx_hash.hex()
+
 
 def connect_to(chain):
     if chain == 'avax':
