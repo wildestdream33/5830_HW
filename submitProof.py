@@ -79,8 +79,9 @@ def sign_challenge(challenge):
     acct = get_account()
     addr = acct.address
     eth_encoded_msg = eth_account.messages.encode_defunct(text=challenge)
-    sig = eth_account.Account.sign_message(eth_encoded_msg, acct.key)
-    return addr, sig.signature.hex()
+    signed = eth_account.Account.sign_message(eth_encoded_msg, acct.key)
+    return addr, signed.signature.hex()
+
 
 
 def send_signed_msg(proof, random_leaf):
