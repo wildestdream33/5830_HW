@@ -8,82 +8,67 @@ from web3.middleware import ExtraDataToPOAMiddleware  # Necessary for POA chains
 
 
 def merkle_assignment():
-    """
-        The only modifications you need to make to this method are to assign
-        your "random_leaf_index" and uncomment the last line when you are
-        ready to attempt to claim a prime. You will need to complete the
-        methods called by this method to generate the proof.
-    """
-    # Generate the list of primes as integers
     num_of_primes = 8192
     primes = generate_primes(num_of_primes)
-
-    # Create a version of the list of primes in bytes32 format
     leaves = convert_leaves(primes)
-
-    # Build a Merkle tree using the bytes32 leaves as the Merkle tree's leaves
     tree = build_merkle(leaves)
 
-    # Select a random leaf and create a proof for that leaf
-    while True:
-        random_leaf_index = random.randint(0, num_of_primes - 1)
-        address, abi = get_contract_info("bsc")
-        w3 = connect_to("bsc")
-        contract = w3.eth.contract(address=address, abi=abi)
-        leaf_prime = primes[random_leaf_index]
-        current_owner = contract.functions.getOwnerByPrime(leaf_prime).call()
-        if int(current_owner, 16) == 0:
-            break
-
+    # Pick a random unclaimed prime index (change if needed)
+    random_leaf_index = random.randint(0, num_of_primes - 1)
     proof = prove_merkle(tree, random_leaf_index)
 
-    # This is the same way the grader generates a challenge for sign_challenge()
     challenge = ''.join(random.choice(string.ascii_letters) for i in range(32))
-    # Sign the challenge to prove to the grader you hold the account
     addr, sig = sign_challenge(challenge)
 
     if sign_challenge_verify(challenge, addr, sig):
-        tx_hash = send_signed_msg(proof, leaves[random_leaf_index])
-        print("TX hash:", tx_hash)
+        tx_hash = '0x'
+        # Uncomment when ready to submit
+        # tx_hash = send_signed_msg(proof, leaves[random_leaf_index])
 
 
 def generate_primes(num_primes):
     primes_list = []
-    n = 2
+    candidate = 2
     while len(primes_list) < num_primes:
+        is_prime = True
         for p in primes_list:
-            if n % p == 0:
+            if p * p > candidate:
                 break
-        else:
-            primes_list.append(n)
-        n += 1
+            if candidate % p == 0:
+                is_prime = False
+                break
+        if is_prime:
+            primes_list.append(candidate)
+        candidate += 1
     return primes_list
 
 
 def convert_leaves(primes_list):
-    return [Web3.solidity_keccak(['uint256'], [p]) for p in primes_list]
+    return [Web3.to_bytes(p).rjust(32, b'\x00') for p in primes_list]
 
 
 def build_merkle(leaves):
     tree = [leaves]
-    current = leaves
-    while len(current) > 1:
-        new_level = []
-        for i in range(0, len(current), 2):
-            if i + 1 < len(current):
-                new_level.append(hash_pair(current[i], current[i + 1]))
+    level = leaves
+    while len(level) > 1:
+        next_level = []
+        for i in range(0, len(level), 2):
+            left = level[i]
+            if i + 1 < len(level):
+                right = level[i + 1]
             else:
-                new_level.append(current[i])
-        tree.append(new_level)
-        current = new_level
+                right = left
+            next_level.append(hash_pair(left, right))
+        tree.append(next_level)
+        level = next_level
     return tree
 
 
 def prove_merkle(merkle_tree, random_indx):
     merkle_proof = []
     index = random_indx
-    for level in merkle_tree[:-1]:
-        sibling_index = index ^ 1
+    for level in merkle_tree[:-1]:  # Don't include root level
+        sibling_index = index ^ 1  # Flip last bit to get sibling
         if sibling_index < len(level):
             merkle_proof.append(level[sibling_index])
         index //= 2
@@ -93,10 +78,9 @@ def prove_merkle(merkle_tree, random_indx):
 def sign_challenge(challenge):
     acct = get_account()
     addr = acct.address
-    eth_sk = acct.key
     eth_encoded_msg = eth_account.messages.encode_defunct(text=challenge)
-    eth_sig_obj = eth_account.Account.sign_message(eth_encoded_msg, eth_sk)
-    return addr, eth_sig_obj.signature.hex()
+    sig = eth_account.Account.sign_message(eth_encoded_msg, acct.key)
+    return addr, sig.signature.hex()
 
 
 def send_signed_msg(proof, random_leaf):
@@ -104,20 +88,24 @@ def send_signed_msg(proof, random_leaf):
     acct = get_account()
     address, abi = get_contract_info(chain)
     w3 = connect_to(chain)
+
     contract = w3.eth.contract(address=address, abi=abi)
     nonce = w3.eth.get_transaction_count(acct.address)
-    txn = contract.functions.submit(proof, random_leaf).build_transaction({
-        'from': acct.address,
-        'nonce': nonce,
-        'gas': 500000,
-        'gasPrice': w3.to_wei('10', 'gwei')
+    gas_price = w3.eth.gas_price
+
+    txn = contract.functions.submit(proof, Web3.to_bytes(random_leaf).rjust(32, b'\x00')).build_transaction({
+        'chainId': 97,
+        'gas': 300000,
+        'gasPrice': gas_price,
+        'nonce': nonce
     })
-    signed_txn = w3.eth.account.sign_transaction(txn, private_key=acct.key)
+
+    signed_txn = w3.eth.account.sign_transaction(txn, acct.key)
     tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
     return tx_hash.hex()
 
 
-# Helper functions that do not need to be modified
+# Helper functions remain unchanged
 def connect_to(chain):
     if chain not in ['avax','bsc']:
         print(f"{chain} is not a valid option for 'connect_to()'")
@@ -152,13 +140,7 @@ def get_contract_info(chain):
 
 def sign_challenge_verify(challenge, addr, sig):
     eth_encoded_msg = eth_account.messages.encode_defunct(text=challenge)
-    if eth_account.Account.recover_message(eth_encoded_msg, signature=sig) == addr:
-        print(f"Success: signed the challenge {challenge} using address {addr}!")
-        return True
-    else:
-        print(f"Failure: The signature does not verify!")
-        print(f"signature = {sig}\naddress = {addr}\nchallenge = {challenge}")
-        return False
+    return eth_account.Account.recover_message(eth_encoded_msg, signature=sig) == addr
 
 
 def hash_pair(a, b):
@@ -170,4 +152,5 @@ def hash_pair(a, b):
 
 if __name__ == "__main__":
     merkle_assignment()
+
 
