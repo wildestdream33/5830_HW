@@ -74,17 +74,25 @@ def send_signed_msg(proof, leaf):
     address, abi = get_contract_info(chain)
     w3 = connect_to(chain)
     contract = w3.eth.contract(address=address, abi=abi)
+
     tx = contract.functions.submit(proof, leaf).build_transaction({
         'from': acct.address,
         'nonce': w3.eth.get_transaction_count(acct.address),
-        'gas': 300000,
+        'gas': 300_000,
         'gasPrice': w3.to_wei('10', 'gwei'),
-        'chainId': 97
+        'chainId': 97,
     })
+
     signed = w3.eth.account.sign_transaction(tx, acct.key)
-    tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-    print("Submitted tx:", tx_hash.hex())
+    # <-- use raw_transaction, not rawTransaction
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    print("Submitted tx hash:", tx_hash.hex())
+
+    # wait for it to be mined before exiting, so the autograder can see your claim
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+    print(f"✔️ Mined in block {receipt.blockNumber}")
     return tx_hash.hex()
+
 
 def connect_to(chain):
     url = ("https://data-seed-prebsc-1-s1.binance.org:8545/"
