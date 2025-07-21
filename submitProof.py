@@ -10,27 +10,34 @@ def merkle_assignment():
     primes = generate_primes(8192)
     leaves = convert_leaves(primes)
     tree = build_merkle(leaves)
-    random_leaf_index = 1
+    # pick an unclaimed leaf at random (you can add logic to check on‐chain)
+    random_leaf_index = random.randrange(len(leaves))
     proof = prove_merkle(tree, random_leaf_index)
+
+    # sign a challenge so the autograder knows you control the key
     challenge = ''.join(random.choice(string.ascii_letters) for _ in range(32))
     addr, sig = sign_challenge(challenge)
     if sign_challenge_verify(challenge, addr, sig):
         send_signed_msg(proof, leaves[random_leaf_index])
 
 def generate_primes(n):
-    primes, candidate = [], 2
+    primes = []
+    candidate = 2
     while len(primes) < n:
+        is_prime = True
         for p in primes:
             if p * p > candidate:
                 break
             if candidate % p == 0:
+                is_prime = False
                 break
-        else:
+        if is_prime:
             primes.append(candidate)
         candidate += 1
     return primes
 
 def convert_leaves(primes):
+    # pack each prime into a 32‐byte big‐endian word
     return [int.to_bytes(p, 32, 'big') for p in primes]
 
 def build_merkle(leaves):
@@ -40,7 +47,7 @@ def build_merkle(leaves):
         nxt = []
         for i in range(0, len(level), 2):
             left = level[i]
-            right = level[i + 1] if i + 1 < len(level) else left
+            right = level[i+1] if i+1 < len(level) else left
             nxt.append(hash_pair(left, right))
         tree.append(nxt)
         level = nxt
@@ -76,13 +83,13 @@ def send_signed_msg(proof, leaf):
     })
     signed = w3.eth.account.sign_transaction(tx, acct.key)
     tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-    print(tx_hash.hex())
+    print("Submitted tx:", tx_hash.hex())
     return tx_hash.hex()
 
 def connect_to(chain):
-    url = ("https://api.avax-test.network/ext/bc/C/rpc"
-           if chain == 'avax'
-           else "https://data-seed-prebsc-1-s1.binance.org:8545/")
+    url = ("https://data-seed-prebsc-1-s1.binance.org:8545/"
+           if chain == 'bsc'
+           else "https://api.avax-test.network/ext/bc/C/rpc")
     w3 = Web3(Web3.HTTPProvider(url))
     w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
     return w3
@@ -105,12 +112,15 @@ def sign_challenge_verify(challenge, addr, sig):
     return eth_account.Account.recover_message(msg, signature=sig) == addr
 
 def hash_pair(a, b):
-    return (Web3.solidity_keccak(['bytes32', 'bytes32'], [a, b])
-            if a < b else
-            Web3.solidity_keccak(['bytes32', 'bytes32'], [b, a]))
+    # openzeppelin-style: sort before hashing
+    if a < b:
+        return Web3.solidity_keccak(['bytes32','bytes32'], [a,b])
+    else:
+        return Web3.solidity_keccak(['bytes32','bytes32'], [b,a])
 
 if __name__ == "__main__":
     merkle_assignment()
+
 
 
 
