@@ -36,7 +36,7 @@ contract Attacker is AccessControl, IERC777Recipient {
     function setTarget(address bank_address) external onlyRole(ATTACKER_ROLE) {
         bank = Bank(bank_address);
         _grantRole(ATTACKER_ROLE, address(this));
-        // grant role to the token's address (cast contract to address):
+        
         _grantRole(ATTACKER_ROLE, address(bank.token()));
     }
 
